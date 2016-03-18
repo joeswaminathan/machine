@@ -17,6 +17,7 @@ import (
 	"github.com/docker/machine/drivers/generic"
 	"github.com/docker/machine/drivers/google"
 	"github.com/docker/machine/drivers/hyperv"
+	"github.com/docker/machine/drivers/icf"
 	"github.com/docker/machine/drivers/none"
 	"github.com/docker/machine/drivers/openstack"
 	"github.com/docker/machine/drivers/rackspace"
@@ -167,6 +168,8 @@ func main() {
 
 func runDriver(driverName string) {
 	switch driverName {
+	case "icf":
+		plugin.RegisterDriver(icf.NewDriver("", ""))
 	case "amazonec2":
 		plugin.RegisterDriver(amazonec2.NewDriver("", ""))
 	case "azure":
