@@ -17,8 +17,8 @@ var (
 	// plugin server.
 	defaultTimeout               = 10 * time.Second
 	CurrentBinaryIsDockerMachine = false
-	CoreDrivers                  = [...]string{"icf", "amazonec2", "azure", "digitalocean",
-		"exoscale", "generic", "google", "hyperv", "none", "openstack",
+	CoreDrivers                  = [...]string{"amazonec2", "azure", "digitalocean",
+		"exoscale", "generic", "google", "hyperv", "icf", "none", "openstack",
 		"rackspace", "softlayer", "virtualbox", "vmwarefusion",
 		"vmwarevcloudair", "vmwarevsphere"}
 )

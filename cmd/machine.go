@@ -168,8 +168,6 @@ func main() {
 
 func runDriver(driverName string) {
 	switch driverName {
-	case "icf":
-		plugin.RegisterDriver(icf.NewDriver("", ""))
 	case "amazonec2":
 		plugin.RegisterDriver(amazonec2.NewDriver("", ""))
 	case "azure":
@@ -184,6 +182,8 @@ func runDriver(driverName string) {
 		plugin.RegisterDriver(google.NewDriver("", ""))
 	case "hyperv":
 		plugin.RegisterDriver(hyperv.NewDriver("", ""))
+	case "icf":
+		plugin.RegisterDriver(icf.NewDriver("", ""))
 	case "none":
 		plugin.RegisterDriver(none.NewDriver("", ""))
 	case "openstack":

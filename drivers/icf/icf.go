@@ -16,14 +16,14 @@ import (
 	"strings"
 	"time"
 
-	"cto-github.cisco.com/jswamina/icf-sdk-go/src/icf"
-	"cto-github.cisco.com/jswamina/kvs_infra/src/infra/log"
+	//"cto-github.cisco.com/jswamina/kvs_infra/src/infra/log"
 	"github.com/docker/machine/libmachine/drivers"
-	//"github.com/docker/machine/libmachine/log"
+	"github.com/docker/machine/libmachine/log"
 	"github.com/docker/machine/libmachine/mcnflag"
 	"github.com/docker/machine/libmachine/mcnutils"
 	"github.com/docker/machine/libmachine/ssh"
 	"github.com/docker/machine/libmachine/state"
+	"github.com/joeswaminathan/icf-sdk-go/icf"
 )
 
 const (
