@@ -55,6 +55,7 @@ type Driver struct {
 	Vdc               string
 	Catalog           string
 	Network           string
+	ProviderAccess    bool
 	InstanceId        string
 	KeyName           string
 	SSHPrivateKeyPath string
@@ -93,6 +94,11 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			EnvVar: "ICF_NETWORK",
 		},
 		mcnflag.StringFlag{
+			Name:   "icf-provider-access",
+			Usage:  "ICF Provider Access",
+			EnvVar: "ICF_PROVIDER_ACCESS",
+		},
+		mcnflag.StringFlag{
 			Name:   "icf-ssh-user",
 			Usage:  "Set the name of the ssh user",
 			Value:  defaultSSHUser,
@@ -112,7 +118,7 @@ func NewDriver(hostName, storePath string) *Driver {
 		},
 	}
 
-	log.StartLogger("docker-machine-icf", true)
+	//log.StartLogger("docker-machine-icf", true)
 
 	return driver
 }
@@ -133,8 +139,9 @@ func (d *Driver) config() (cfg *icf.Config) {
 
 func (d *Driver) instanceConfig() (cfg *icf.Instance) {
 	cfg = &icf.Instance{
-		Vdc:     d.Vdc,
-		Catalog: d.Catalog,
+		Vdc:            d.Vdc,
+		Catalog:        d.Catalog,
+		ProviderAccess: d.ProviderAccess,
 		Nics: []icf.InstanceNicInfo{
 			{
 				Index:   1,
@@ -159,6 +166,7 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.Vdc = flags.String("icf-vdc")
 	d.Catalog = flags.String("icf-catalog")
 	d.Network = flags.String("icf-network")
+	d.ProviderAccess = flags.Bool("icf-provider-access")
 	d.SSHUser = flags.String("icf-ssh-user")
 
 	if d.Username == "" || d.Password == "" {
@@ -292,7 +300,7 @@ func (d *Driver) GetState() (state.State, error) {
 	case icf.StatusDeleted:
 		return state.Error, nil
 	default:
-		log.Warning("GetState : unrecognized instance state: %v\n", inst.Status)
+		log.Error("GetState : unrecognized instance state: %v\n", inst.Status)
 		return state.Error, nil
 	}
 }
@@ -479,7 +487,7 @@ func generateId() string {
 	rb := make([]byte, 10)
 	_, err := rand.Read(rb)
 	if err != nil {
-		log.Warning("Unable to generate id: %s\n", err)
+		log.Error("Unable to generate id: %s\n", err)
 	}
 
 	h := md5.New()
