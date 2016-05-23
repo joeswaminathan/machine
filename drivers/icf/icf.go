@@ -139,14 +139,16 @@ func (d *Driver) config() (cfg *icf.Config) {
 		EndPoint:   d.Server,
 		Protocol:   "https",
 		Root:       "icfb/v1",
-		ServerCert: d.ServerCerts,
+		ServerCert: d.ServerCert,
 	}
 
+	log.Debugf("[info] Server Cert = %s\n", d.ServerCert)
 	return
 }
 
 func (d *Driver) instanceConfig() (cfg *icf.Instance) {
 	cfg = &icf.Instance{
+		Name:           d.BaseDriver.MachineName,
 		Vdc:            d.Vdc,
 		Catalog:        d.Catalog,
 		ProviderAccess: d.ProviderAccess,
