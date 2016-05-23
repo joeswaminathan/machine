@@ -52,6 +52,7 @@ type Driver struct {
 	Username          string
 	Password          string
 	Server            string
+	ServerCert        string
 	Vdc               string
 	Catalog           string
 	Network           string
@@ -77,6 +78,12 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Name:   "icf-server",
 			Usage:  "ICFB IP address",
 			EnvVar: "ICF_SERVER",
+		},
+		mcnflag.StringFlag{
+			Name:   "icf-server-cert",
+			Usage:  "ICF Server Certificate",
+			Value:  "",
+			EnvVar: "ICF_SERVER_CERT",
 		},
 		mcnflag.StringFlag{
 			Name:   "icf-vdc",
@@ -129,9 +136,10 @@ func (d *Driver) config() (cfg *icf.Config) {
 			Username: d.Username,
 			Password: d.Password,
 		},
-		EndPoint: d.Server,
-		Protocol: "http",
-		Root:     "icfb/v1",
+		EndPoint:   d.Server,
+		Protocol:   "https",
+		Root:       "icfb/v1",
+		ServerCert: d.ServerCerts,
 	}
 
 	return
@@ -163,6 +171,7 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.Username = flags.String("icf-username")
 	d.Password = flags.String("icf-password")
 	d.Server = flags.String("icf-server")
+	d.ServerCert = flags.String("icf-server-cert")
 	d.Vdc = flags.String("icf-vdc")
 	d.Catalog = flags.String("icf-catalog")
 	d.Network = flags.String("icf-network")
@@ -221,7 +230,7 @@ func (d *Driver) PreCreateCheck() error {
 }
 
 func (d *Driver) Create() (err error) {
-	log.Info("Creating ICF instance...\n")
+	log.Infof("Creating ICF instance...\n")
 
 	c := d.getClient()
 
@@ -229,18 +238,18 @@ func (d *Driver) Create() (err error) {
 
 	instance, err = c.CreateInstance(instance)
 	if err != nil {
-		log.Info("[ERROR] Creating Instance %v\n", err)
+		log.Infof("[ERROR] Creating Instance %v\n", err)
 		return
 	}
 
-	log.Info("[INFO] Instance (%s) create initiated\n", instance.Oid)
+	log.Infof("[INFO] Instance (%s) create initiated\n", instance.Oid)
 
 	// Store the resulting ID so we can look this up later
 	d.InstanceId = instance.Oid
 
-	log.Info("[INFO] Instance (%s) is create in progress\n", instance.Oid)
+	log.Infof("[INFO] Instance (%s) is create in progress\n", instance.Oid)
 	err = d.waitForInstance()
-	log.Info("[INFO] Instance (%s) is ready\n", instance.Oid)
+	log.Infof("[INFO] Instance (%s) is ready\n", instance.Oid)
 
 	d.createKeyPair()
 	return
@@ -354,13 +363,13 @@ func (d *Driver) getInstance() (inst *icf.Instance, err error) {
 func (d *Driver) instanceIsRunning() bool {
 	st, err := d.GetState()
 	if err != nil {
-		log.Info("instanceIsRunning : Error =\n", err)
+		log.Infof("instanceIsRunning : Error =\n", err)
 	}
 	if st == state.Running {
-		log.Info("instanceIsRunning : Running\n")
+		log.Infof("instanceIsRunning : Running\n")
 		return true
 	}
-	log.Info("instanceIsRunning : Not Running\n")
+	log.Infof("instanceIsRunning : Not Running\n")
 	return false
 }
 
@@ -382,7 +391,7 @@ func post(hostname string, path string, data []byte) (err error) {
 
 	hclient := &http.Client{Timeout: defaultRequestTimeout}
 	url := "http://" + hostname + ":8787" + path
-	log.Info("Posting url(%s) data(%s)\n", url, string(data))
+	log.Infof("Posting url(%s) data(%s)\n", url, string(data))
 	if req, err = http.NewRequest("POST", url, bytes.NewBuffer(data)); err != nil {
 		return
 	}
@@ -394,7 +403,7 @@ func post(hostname string, path string, data []byte) (err error) {
 	sc := resp.StatusCode
 	status := resp.Status
 	if data, err = ioutil.ReadAll(resp.Body); err == nil {
-		log.Debug("Response sc(%d) status(%s) msg (%s)\n",
+		log.Infof("Response sc(%d) status(%s) msg (%s)\n",
 			sc, status, string(data))
 	}
 	if sc >= 300 || sc < 100 {
@@ -410,7 +419,7 @@ func (d *Driver) createKeyPair() error {
 		User string `json:"user"`
 		Key  string `json:"key"`
 	}
-	log.Info("createKey : Entered\n")
+	log.Infof("createKey : Entered\n")
 
 	keyPath := ""
 
@@ -419,7 +428,7 @@ func (d *Driver) createKeyPair() error {
 		if err := ssh.GenerateSSHKey(d.GetSSHKeyPath()); err != nil {
 			return err
 		}
-		log.Info("createKey : Generated Key : Path %s\n", d.GetSSHKeyPath())
+		log.Infof("createKey : Generated Key : Path %s\n", d.GetSSHKeyPath())
 		keyPath = d.GetSSHKeyPath()
 	} else {
 		log.Error("createKey : Using ExistingKeyPair: %s\n", d.SSHPrivateKeyPath)
@@ -453,14 +462,15 @@ func (d *Driver) createKeyPair() error {
 		log.Error("createKey : Unable to Marshal: %v\n", authKey)
 		return err
 	}
-	log.Info("createKey : Posting Key (%s)\n", string(data))
+	log.Infof("createKey : Posting Key (%s)\n", string(data))
 
+	time.Sleep(time.Second * 20)
 	hostname, err = d.GetSSHHostname()
 	if err = post(hostname, "/api/authkey", data); err != nil {
 		log.Error("createKey : Error setting key: %v\n", err)
 		return err
 	}
-	log.Info("createKey : Success\n")
+	log.Infof("createKey : Success\n")
 	return nil
 }
 
@@ -469,13 +479,13 @@ func (d *Driver) terminate() error {
 		return fmt.Errorf("unknown instance")
 	}
 
-	log.Info("terminating ICF instance: %s\n", d.InstanceId)
+	log.Infof("terminating ICF instance: %s\n", d.InstanceId)
 	err := d.getClient().DeleteInstance(d.InstanceId)
 	if err != nil {
 		log.Error("Error in terminating instance (%s) : %v\n", d.InstanceId, err)
 		return fmt.Errorf("unable to terminate instance: %s", err)
 	}
-	log.Info("terminated instance: %s\n", d.InstanceId)
+	log.Infof("terminated instance: %s\n", d.InstanceId)
 	return nil
 }
 

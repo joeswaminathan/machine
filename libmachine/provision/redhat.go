@@ -28,8 +28,7 @@ gpgkey=https://yum.dockerproject.org/gpg
 `
 	engineConfigTemplate = `[Unit]
 Description=Docker Application Container Engine
-After=network.target docker.socket
-Requires=docker.socket
+After=network.target 
 
 [Service]
 ExecStart=/usr/bin/docker daemon -H tcp://0.0.0.0:{{.DockerPort}} -H unix:///var/run/docker.sock --storage-driver {{.EngineOptions.StorageDriver}} --tlsverify --tlscacert {{.AuthOptions.CaCertRemotePath}} --tlscert {{.AuthOptions.ServerCertRemotePath}} --tlskey {{.AuthOptions.ServerKeyRemotePath}} {{ range .EngineOptions.Labels }}--label {{.}} {{ end }}{{ range .EngineOptions.InsecureRegistry }}--insecure-registry {{.}} {{ end }}{{ range .EngineOptions.RegistryMirror }}--registry-mirror {{.}} {{ end }}{{ range .EngineOptions.ArbitraryFlags }}--{{.}} {{ end }}
@@ -115,6 +114,7 @@ func (provisioner *RedHatProvisioner) Package(name string, action pkgaction.Pack
 }
 
 func installDocker(provisioner *RedHatProvisioner) error {
+	log.Debugf("Installing Docker from URL %s", provisioner.EngineOptions.InstallURL)
 	if err := installDockerGeneric(provisioner, provisioner.EngineOptions.InstallURL); err != nil {
 		return err
 	}
@@ -163,38 +163,53 @@ func (provisioner *RedHatProvisioner) Provision(swarmOptions swarm.Options, auth
 	for _, pkg := range provisioner.Packages {
 		log.Debugf("installing base package: name=%s", pkg)
 		if err := provisioner.Package(pkg, pkgaction.Install); err != nil {
+			log.Debugf("Error installing base package: name=%s, error=%v", pkg, err)
 			return err
 		}
 	}
 
 	// update OS -- this is needed for libdevicemapper and the docker install
+	log.Debugf("Updating yum packages")
 	if _, err := provisioner.SSHCommand("sudo yum -y update"); err != nil {
+		log.Debugf("Error updating packages: error=%v", err)
 		return err
 	}
 
 	// install docker
+	log.Infof("Installing Docker")
 	if err := installDocker(provisioner); err != nil {
+		log.Debugf("Error installing docker: error=%v", err)
 		return err
 	}
 
+	log.Infof("Waiting for Docker")
 	if err := mcnutils.WaitFor(provisioner.dockerDaemonResponding); err != nil {
+		log.Debugf("Error waiting for Docker daemon: error=%v", err)
 		return err
 	}
 
+	log.Infof("Create docker options dir")
 	if err := makeDockerOptionsDir(provisioner); err != nil {
+		log.Debugf("Error makeing Docker options dir: error=%v", err)
 		return err
 	}
 
 	provisioner.AuthOptions = setRemoteAuthOptions(provisioner)
 
+	log.Infof("Configuring Auth")
 	if err := ConfigureAuth(provisioner); err != nil {
+		log.Debugf("Error Configuring Auth: error=%v", err)
 		return err
 	}
 
+	log.Infof("Configuring Swarm : provisioner =%s\n, options = %v\n, auth options = %v\n",
+		provisioner.String(), swarmOptions, provisioner.AuthOptions)
 	if err := configureSwarm(provisioner, swarmOptions, provisioner.AuthOptions); err != nil {
+		log.Debugf("Error Configuring Swarm: error=%v", err)
 		return err
 	}
 
+	log.Infof("%s : Provisioning Successful", provisioner.String())
 	return nil
 }
 
@@ -221,13 +236,24 @@ func (provisioner *RedHatProvisioner) GenerateDockerOptions(dockerPort int) (*Do
 		DockerOptionsDir: provisioner.DockerOptionsDir,
 	}
 
+	log.Infof("RedhatProvisioner : GenerateDockerOptions\n")
+	log.Infof("RedhatProvisioner : \n\tPort = %v\n\tAuth=%v\n\tEngine=%v\n\tDocker=\n",
+		dockerPort,
+		provisioner.AuthOptions,
+		provisioner.EngineOptions,
+		provisioner.DockerOptionsDir)
+
 	t.Execute(&engineCfg, engineConfigContext)
 
 	daemonOptsDir := configPath
+	log.Infof("RedhatProvisioner : DockerOptions\n")
+	log.Infof("RedhatProvisioner : \n\tEngineOptions = %v\n\tEngineOptionsPath=%v\n",
+		engineCfg.String(), daemonOptsDir)
 	return &DockerOptions{
 		EngineOptions:     engineCfg.String(),
 		EngineOptionsPath: daemonOptsDir,
 	}, nil
+
 }
 
 func generateYumRepoList(provisioner Provisioner) (*bytes.Buffer, error) {

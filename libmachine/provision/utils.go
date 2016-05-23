@@ -61,6 +61,7 @@ func ConfigureAuth(p Provisioner) error {
 		err error
 	)
 
+	log.Infof("ConfigureAuth : Using Provisioner %s", p.String())
 	driver := p.GetDriver()
 	machineName := driver.GetMachineName()
 	authOptions := p.GetAuthOptions()
@@ -180,10 +181,17 @@ func ConfigureAuth(p Provisioner) error {
 	log.Info("Setting Docker configuration on the remote daemon...")
 
 	if _, err = p.SSHCommand(fmt.Sprintf("printf %%s \"%s\" | sudo tee %s", dkrcfg.EngineOptions, dkrcfg.EngineOptionsPath)); err != nil {
+		log.Errorf("p.SSHCommand Options : %v, Path : %v", 
+			dkrcfg.EngineOptions, dkrcfg.EngineOptionsPath)
+		log.Errorf("p.SSHCommand failed : %v", err)
 		return err
 	}
 
+	log.Info("Starting Docker daemon...")
+
 	if err := p.Service("docker", serviceaction.Start); err != nil {
+		log.Errorf("p.Service  options : %v", serviceaction.Start)
+		log.Errorf("p.Service  failed : %v", err)
 		return err
 	}
 
@@ -265,6 +273,7 @@ func checkDaemonUp(p Provisioner, dockerPort int) func() bool {
 
 func WaitForDocker(p Provisioner, dockerPort int) error {
 	if err := mcnutils.WaitForSpecific(checkDaemonUp(p, dockerPort), 10, 3*time.Second); err != nil {
+		log.Errorf("WaitForDocker failed : %v", err)
 		return NewErrDaemonAvailable(err)
 	}
 
